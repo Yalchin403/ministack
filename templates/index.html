@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ministack S3 demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
+  <div id="app" class="w-full max-w-lg space-y-6">
+
+    <!-- Upload card -->
+    <div class="bg-white rounded-2xl shadow p-6 space-y-4">
+      <h2 class="text-xl font-semibold text-gray-800">Upload a file</h2>
+
+      <label class="block">
+        <span class="text-sm text-gray-500">Choose file</span>
+        <input
+          type="file"
+          @change="onFileChange"
+          class="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+        />
+      </label>
+
+      <button
+        @click="uploadFile"
+        :disabled="!selectedFile || uploading"
+        class="w-full py-2 px-4 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+      >
+        {{ uploading ? 'Uploading…' : 'Upload' }}
+      </button>
+
+      <div v-if="uploadError" class="text-sm text-red-600 bg-red-50 rounded-lg p-3">{{ uploadError }}</div>
+
+      <div v-if="uploadResult" class="space-y-1">
+        <p class="text-sm text-gray-500">Key: <span class="font-mono text-gray-700">{{ uploadResult.key }}</span></p>
+        <p class="text-sm text-gray-500">Presigned URL:</p>
+        <a
+          :href="uploadResult.url"
+          target="_blank"
+          class="block break-all text-xs text-indigo-600 hover:underline bg-indigo-50 rounded-lg p-3 font-mono"
+        >{{ uploadResult.url }}</a>
+      </div>
+    </div>
+
+    <!-- Presigned URL card -->
+    <div class="bg-white rounded-2xl shadow p-6 space-y-4">
+      <h2 class="text-xl font-semibold text-gray-800">Get presigned URL by key</h2>
+
+      <input
+        v-model="lookupKey"
+        type="text"
+        placeholder="e.g. myfile.txt"
+        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      />
+
+      <button
+        @click="getPresignedUrl"
+        :disabled="!lookupKey.trim() || fetching"
+        class="w-full py-2 px-4 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+      >
+        {{ fetching ? 'Fetching…' : 'Get URL' }}
+      </button>
+
+      <div v-if="lookupError" class="text-sm text-red-600 bg-red-50 rounded-lg p-3">{{ lookupError }}</div>
+
+      <div v-if="lookupResult" class="space-y-1">
+        <p class="text-sm text-gray-500">Presigned URL:</p>
+        <a
+          :href="lookupResult.url"
+          target="_blank"
+          class="block break-all text-xs text-emerald-600 hover:underline bg-emerald-50 rounded-lg p-3 font-mono"
+        >{{ lookupResult.url }}</a>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref } = Vue;
+
+    createApp({
+      setup() {
+        const selectedFile = ref(null);
+        const uploading = ref(false);
+        const uploadResult = ref(null);
+        const uploadError = ref('');
+
+        const lookupKey = ref('');
+        const fetching = ref(false);
+        const lookupResult = ref(null);
+        const lookupError = ref('');
+
+        function onFileChange(e) {
+          selectedFile.value = e.target.files[0] || null;
+          uploadResult.value = null;
+          uploadError.value = '';
+        }
+
+        async function uploadFile() {
+          if (!selectedFile.value) return;
+          uploading.value = true;
+          uploadError.value = '';
+          uploadResult.value = null;
+          try {
+            const form = new FormData();
+            form.append('file', selectedFile.value);
+            const res = await fetch('/upload', { method: 'POST', body: form });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Upload failed');
+            uploadResult.value = data;
+          } catch (err) {
+            uploadError.value = err.message;
+          } finally {
+            uploading.value = false;
+          }
+        }
+
+        async function getPresignedUrl() {
+          const key = lookupKey.value.trim();
+          if (!key) return;
+          fetching.value = true;
+          lookupError.value = '';
+          lookupResult.value = null;
+          try {
+            const res = await fetch(`/presigned-url/${encodeURIComponent(key)}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Request failed');
+            lookupResult.value = data;
+          } catch (err) {
+            lookupError.value = err.message;
+          } finally {
+            fetching.value = false;
+          }
+        }
+
+        return {
+          selectedFile, uploading, uploadResult, uploadError, onFileChange, uploadFile,
+          lookupKey, fetching, lookupResult, lookupError, getPresignedUrl,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

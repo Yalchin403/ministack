@@ -38,6 +38,18 @@ def upload_file(file_bytes: bytes, key: str, content_type: str) -> None:
     )
 
 
+def list_files() -> list[dict]:
+    response = s3_client.list_objects_v2(Bucket=BUCKET_NAME)
+    return [
+        {"key": obj["Key"], "size": obj["Size"], "last_modified": obj["LastModified"].isoformat()}
+        for obj in response.get("Contents", [])
+    ]
+
+
+def delete_file(key: str) -> None:
+    s3_client.delete_object(Bucket=BUCKET_NAME, Key=key)
+
+
 def generate_presigned_url(key: str) -> str:
     return s3_client.generate_presigned_url(
         ClientMethod="get_object",
